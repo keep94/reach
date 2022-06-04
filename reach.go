@@ -33,35 +33,35 @@ func (s postfixEntry) String() string {
 // postfix represents a postfix expression.
 type postfix []postfixEntry
 
-// clear clears the postfix expression.
-func (p *postfix) clear() {
+// Clear clears the postfix expression.
+func (p *postfix) Clear() {
 	*p = (*p)[:0]
 }
 
-// appendValue appends a value to this expression.
-func (p *postfix) appendValue(x int64) {
+// AppendValue appends a value to this expression.
+func (p *postfix) AppendValue(x int64) {
 	*p = append(*p, postfixEntry{value: x})
 }
 
-// appendOp appends an operation to this expression.
-func (p *postfix) appendOp(op byte) {
+// AppendOp appends an operation to this expression.
+func (p *postfix) AppendOp(op byte) {
 	*p = append(*p, postfixEntry{op: op})
 }
 
-// copy returns a copy of this postfix expression.
-func (p postfix) copy() postfix {
+// Copy returns a copy of this postfix expression.
+func (p postfix) Copy() postfix {
 	result := make(postfix, len(p))
 	copy(result, p)
 	return result
 }
 
-// eval evaluates this postfix expression. scratch is used to perform the
+// Eval evaluates this postfix expression. scratch is used to perform the
 // calculation. Caller can declare a single []int64 slice and pass that same
-// slice to multiple eval() calls. eval returns the value of the postfix
+// slice to multiple Eval() calls. Eval returns the value of the postfix
 // expression and true or if the postfix expression can't be evaluated, it
 // returns 0 and false. Reasons that a postfix expression can't be evaluated
 // include division by zero, divisions that result in a non integer value etc.
-func (p postfix) eval(scratch *[]int64) (result int64, ok bool) {
+func (p postfix) Eval(scratch *[]int64) (result int64, ok bool) {
 	*scratch = (*scratch)[:0]
 	for _, entry := range p {
 		if entry.op == 0 {
@@ -195,12 +195,18 @@ func newGenerator(values []int, ops []byte) *generator {
 	return result
 }
 
+// PostfixSize returns the size of the slice that caller must pass to Next()
+// each time. This is 2*n - 1 where n is the length of the values slice
+// passed to newGenerator.
+func (g *generator) PostfixSize() int {
+	return 2*len(g.actualValues) - 1
+}
+
 // Next stores the next postfix expression in p and returns true. If there
 // are no more postfix expressions, Next leaves p unchanged and returns false.
-// Caller must ensure that len(p) == 2*n - 1 where n is the length of the
-// values slice passed to newGenerator.
+// Caller must ensure that len(p) == g.PostfixSize().
 func (g *generator) Next(p postfix) bool {
-	if len(p) < 2*len(g.actualValues)-1 {
+	if len(p) < g.PostfixSize() {
 		panic("postfix slice passed to Next is too small")
 	}
 	if g.done {
@@ -231,15 +237,15 @@ func (g *generator) increment() {
 }
 
 func (g *generator) populate(p postfix) {
-	p.clear()
+	p.Clear()
 	valueIdx := 0
 	positIdx := 0
 	for valueIdx < len(g.values) || positIdx < len(g.posits) {
 		if positIdx == len(g.posits) || valueIdx <= g.posits[positIdx] {
-			p.appendValue(g.actualValues[g.values[valueIdx]])
+			p.AppendValue(g.actualValues[g.values[valueIdx]])
 			valueIdx++
 		} else {
-			p.appendOp(g.actualOps[g.ops[positIdx]])
+			p.AppendOp(g.actualOps[g.ops[positIdx]])
 			positIdx++
 		}
 	}
@@ -254,22 +260,19 @@ func main() {
 	// evaluates to n.
 	expressions := make([]postfix, kNumExpressions)
 
-	// Our postfix expressions will have 5 values (1 to 5 inclusvalue) and
-	// 4 operators
-	p := make(postfix, 9)
-
 	g := newGenerator([]int{1, 2, 3, 4, 5}, []byte{'+', '-', '*', '/', '^'})
+	p := make(postfix, g.PostfixSize())
 
 	// Evaluate each possible expression.
 	// Store that expression in the expressions array
 	var scratch []int64
 	for g.Next(p) {
-		result, ok := p.eval(&scratch)
+		result, ok := p.Eval(&scratch)
 		if !ok || result < 0 || result >= int64(len(expressions)) {
 			continue
 		}
 		if expressions[result] == nil {
-			expressions[result] = p.copy()
+			expressions[result] = p.Copy()
 		}
 	}
 
