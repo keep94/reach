@@ -156,14 +156,12 @@ func pow(first, second int64) (result int64, ok bool) {
 
 // The generator type generates postfix expressions
 type generator struct {
-	opsStream    gocombinatorics.Stream
+	opsStream    *gocombinatorics.TStream[byte]
 	positsStream gocombinatorics.Stream
-	valuesStream gocombinatorics.Stream
-	ops          []int
+	valuesStream *gocombinatorics.TStream[int64]
+	ops          []byte
 	posits       []int
-	values       []int
-	actualOps    []byte
-	actualValues []int64
+	values       []int64
 	done         bool
 }
 
@@ -178,17 +176,13 @@ func newGenerator(values []int, ops []byte) *generator {
 	for i := range values {
 		actualValues[i] = int64(values[i])
 	}
-	actualOps := make([]byte, len(ops))
-	copy(actualOps, ops)
 	result := &generator{
-		opsStream:    gocombinatorics.Product(len(ops), len(values)-1),
+		opsStream:    gocombinatorics.TProduct(ops, len(values)-1),
 		positsStream: gocombinatorics.OpsPosits(len(values) - 1),
-		valuesStream: gocombinatorics.Permutations(len(values), len(values)),
-		ops:          make([]int, len(values)-1),
+		valuesStream: gocombinatorics.TPermutations(actualValues, len(actualValues)),
+		ops:          make([]byte, len(values)-1),
 		posits:       make([]int, len(values)-1),
-		values:       make([]int, len(values)),
-		actualOps:    actualOps,
-		actualValues: actualValues}
+		values:       make([]int64, len(values))}
 	result.opsStream.Next(result.ops)
 	result.positsStream.Next(result.posits)
 	result.valuesStream.Next(result.values)
@@ -199,7 +193,7 @@ func newGenerator(values []int, ops []byte) *generator {
 // each time. This is 2*n - 1 where n is the length of the values slice
 // passed to newGenerator.
 func (g *generator) PostfixSize() int {
-	return 2*len(g.actualValues) - 1
+	return 2*len(g.values) - 1
 }
 
 // Next stores the next postfix expression in p and returns true. If there
@@ -242,10 +236,10 @@ func (g *generator) populate(p postfix) {
 	positIdx := 0
 	for valueIdx < len(g.values) || positIdx < len(g.posits) {
 		if positIdx == len(g.posits) || valueIdx <= g.posits[positIdx] {
-			p.AppendValue(g.actualValues[g.values[valueIdx]])
+			p.AppendValue(g.values[valueIdx])
 			valueIdx++
 		} else {
-			p.AppendOp(g.actualOps[g.ops[positIdx]])
+			p.AppendOp(g.ops[positIdx])
 			positIdx++
 		}
 	}
